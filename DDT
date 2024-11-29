@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.7;
+
+contract DigitalVoting {
+    address public admin;   // Admin who deploys the contract
+    Candidate[] public candidates;  // Array of candidates
+    mapping(address => Voter) public voters; // Track if an address has voted
+    bool public votingIsOpen; // State of voting
+
+    struct Voter {
+        bool registered; // Check if the voter is registered
+        bool voted; // Check if the voter has already voted
+        uint vote; // The index of the candidate that the voter voted for
+    }
+
+    struct Candidate {
+        uint id; // Identifier for the candidate
+        string name;  // Candidate name
+        uint voteCount; // Number of votes received
+    }
+
+    event NewCandidate(string name); // Declare new candidates
+    event VoteCasted(address indexed voter, string candidate);  // Emitted when a vote is cast
+    event VotingClosed(string winningCandidate, uint voteCount);
+    
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only the admin can perform this action.");
+        _; // Continue executing the function
+    }
+
+    modifier canVote() {
+        require(votingIsOpen, "Voting is closed.");
+        _; 
+    }
+
+    constructor(string[] memory candidateNames) {  // Runs once the contract is deployed
+        admin = msg.sender; // Admin deploys the contract
+        votingIsOpen = true;
+
+        for (uint i = 0; i < candidateNames.length; i++) {  // Initialize candidates
+            candidates.push(Candidate(i, candidateNames[i], 0));
+            emit NewCandidate(candidateNames[i]);
+        }
+    }
+
+    // Function to register a voter
+    function registerVoter(address _voter) public onlyAdmin {
+        require(!voters[_voter].registered, "Voter is already registered.");
+        voters[_voter] = Voter(true, false, 0);
+    }
+
+    // Function to cast a vote
+    function vote(uint candidateIndex) public canVote {
+        Voter storage sender = voters[msg.sender];
+        require(sender.registered, "You are not registered to vote.");
+        require(!sender.voted, "You have already voted.");
+        require(candidateIndex < candidates.length, "Invalid candidate index.");
+
+        sender.voted = true;
+        sender.vote = candidateIndex;
+        candidates[candidateIndex].voteCount += 1;
+      
+        emit VoteCasted(msg.sender, candidates[candidateIndex].name);
+    }
+
+    // Function to end voting and declare the result
+    function endVoting() public onlyAdmin {
+        require(votingIsOpen, "Voting has ended."); // require that the current state of 'votingIsOpen' to be true
+        votingIsOpen = false;
+    
+        // Determine the winning option
+        string memory winningCandidate;
+        uint highestVote = 0;
+        
+        for (uint i = 0; i < candidates.length; i++) {
+            if (candidates[i].voteCount > highestVote) {
+                highestVote = candidates[i].voteCount;
+                winningCandidate = candidates[i].name;
+            }
+        }
+        emit VotingClosed(winningCandidate, highestVote);
+    }
+}
